@@ -7278,8 +7278,12 @@ class Index(IndexOpsMixin, PandasObject):
                 item = self._validate_fill_value(item)
         except (TypeError, ValueError, LossySetitemError):
             # e.g. trying to insert an integer into a DatetimeIndex
-            #  We cannot keep the same dtype, so cast to the (often object)
-            #  minimal shared dtype before doing the insert.
+            #  Do not cast datetime-like indexes to object for integer keys
+            #  (GH 22040); re-raise so callers get a clear error.
+            if isinstance(
+                self, (ABCDatetimeIndex, ABCTimedeltaIndex, ABCPeriodIndex)
+            ) and is_integer(item):
+                raise
             dtype = self._find_common_type_compat(item)
             if dtype == self.dtype:
                 # EA's might run into recursion errors if loc is invalid

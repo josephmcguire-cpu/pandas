@@ -3064,6 +3064,49 @@ def test_loc_slice_disallows_positional():
         df.loc[1:3, 1] = 2
 
 
+@pytest.mark.parametrize(
+    "case",
+    ["df_naive", "df_tz", "df_single_row", "df_dup", "ser_naive"],
+)
+def test_loc_setitem_integer_key_datetimeindex_raises(case):
+    # GH 22040: .loc with integer row key on DatetimeIndex must raise (label-based);
+    # must not insert a new row or cast index to object.
+    rng = np.random.default_rng(2)
+    colnames = ["col1", "col2"]
+    index_naive = date_range("2018-01-01", periods=2)
+    df_naive = DataFrame(rng.random((2, 2)), index=index_naive, columns=colnames)
+    if case == "df_naive":
+        obj = df_naive.copy()
+    elif case == "df_tz":
+        obj = DataFrame(
+            rng.random((2, 2)),
+            index=date_range("2018-01-01", periods=2, tz="UTC"),
+            columns=colnames,
+        )
+    elif case == "df_single_row":
+        obj = DataFrame(
+            rng.random((1, 2)),
+            index=date_range("2018-01-01", periods=1),
+            columns=colnames,
+        )
+    elif case == "df_dup":
+        obj = df_naive.iloc[[0, 0]].copy()
+    else:
+        assert case == "ser_naive"
+        obj = Series(rng.random(2), index=index_naive).copy()
+    orig_index = obj.index
+    orig_len = len(obj)
+    orig_dtype = obj.index.dtype
+    with pytest.raises((KeyError, TypeError)):
+        if case == "ser_naive":
+            obj.loc[0] = 0
+        else:
+            obj.loc[0, "col1"] = 0
+    assert len(obj) == orig_len
+    assert obj.index.dtype == orig_dtype
+    tm.assert_index_equal(obj.index, orig_index)
+
+
 def test_loc_datetimelike_mismatched_dtypes():
     # GH#32650 dont mix and match datetime/timedelta/period dtypes
 

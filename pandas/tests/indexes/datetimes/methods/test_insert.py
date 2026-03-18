@@ -235,22 +235,22 @@ class TestInsert:
         assert expected.dtype == idx.dtype
         tm.assert_index_equal(result, expected)
 
-    @pytest.mark.parametrize(
-        "item", [0, np.int64(0), np.float64(0), np.array(0), np.timedelta64(456)]
-    )
-    def test_insert_mismatched_types_raises(self, tz_aware_fixture, item):
-        # GH#33703 dont cast these to dt64
+    @pytest.mark.parametrize("item", [0, np.int64(0), np.array(0)])
+    def test_insert_mismatched_types_integer_raises(self, tz_aware_fixture, item):
+        # GH#22040: integer-like keys must raise, not cast index to object
         tz = tz_aware_fixture
         dti = date_range("2019-11-04", periods=9, freq="-1D", name=9, tz=tz)
+        with pytest.raises(TypeError, match=r"Timestamp|NaT|Got 'int"):
+            dti.insert(1, item)
 
+    @pytest.mark.parametrize("item", [np.float64(0), np.timedelta64(456)])
+    def test_insert_mismatched_types_casts_to_object(self, tz_aware_fixture, item):
+        # GH#33703: non-integer mismatched types cast to object
+        tz = tz_aware_fixture
+        dti = date_range("2019-11-04", periods=9, freq="-1D", name=9, tz=tz)
         result = dti.insert(1, item)
-
-        if isinstance(item, np.ndarray):
-            assert item.item() == 0
-            expected = Index([dti[0], 0, *list(dti[1:])], dtype=object, name=9)
-        else:
-            expected = Index([dti[0], item, *list(dti[1:])], dtype=object, name=9)
-
+        val = item.item() if isinstance(item, np.ndarray) else item
+        expected = Index([dti[0], val, *list(dti[1:])], dtype=object, name=9)
         tm.assert_index_equal(result, expected)
 
     def test_insert_castable_str(self, tz_aware_fixture):

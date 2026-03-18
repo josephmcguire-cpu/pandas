@@ -97,15 +97,18 @@ class TestTimedeltaIndexInsert:
         result = idx.insert(0, item2)
         tm.assert_index_equal(result, expected)
 
-    @pytest.mark.parametrize(
-        "item", [0, np.int64(0), np.float64(0), np.array(0), np.datetime64(456, "us")]
-    )
-    def test_insert_mismatched_types_raises(self, item):
-        # GH#33703 dont cast these to td64
+    @pytest.mark.parametrize("item", [0, np.int64(0), np.array(0)])
+    def test_insert_mismatched_types_integer_raises(self, item):
+        # GH#22040: integer-like keys must raise, not cast index to object
         tdi = TimedeltaIndex(["4day", "1day", "2day"], name="idx")
+        with pytest.raises(TypeError, match=r"Timedelta|NaT|Got 'int"):
+            tdi.insert(1, item)
 
+    @pytest.mark.parametrize("item", [np.float64(0), np.datetime64(456, "us")])
+    def test_insert_mismatched_types_casts_to_object(self, item):
+        # GH#33703: non-integer mismatched types cast to object
+        tdi = TimedeltaIndex(["4day", "1day", "2day"], name="idx")
         result = tdi.insert(1, item)
-
         expected = Index(
             [tdi[0], lib.item_from_zerodim(item), *list(tdi[1:])],
             dtype=object,
